@@ -1,0 +1,87 @@
+#include <EasyStarterKitTM1637.h>           // Include the display library
+#include <EasyStarterKitTemperature.h>      // Include the temperature library
+#include <EasyStarterKitRGB.h>              // Include the RGB LED library
+#include <EasyStarterKitPassiveBuzzer.h>    // Include the passive buzzer library
+
+#define NTC_PIN A1                      // NTC module connected to A1 of Arduino
+#define RGB_PIN 3                       // DIN pin of the RGB LED connected to D3
+#define BUZZER_PIN 6                    // Passive buzzer connected to D6
+#define BUTTON_PIN A2                   // Button connected to A2
+#define NUMpixcels 1                    // Number of RGB LED pixels 
+
+Temperature temper(NTC_PIN);           // Temperature sensor object
+TM1637 disp(4, 2);                     // Display object
+RGB rgb(NUMpixcels, RGB_PIN);          // RGB LED object
+PassiveBuzzer buz(BUZZER_PIN);         // Passive buzzer object
+
+bool acknowledgeWarning = false;       // Acknowledge button state
+unsigned long lastAckTime = 0;         // Timestamp of acknowledgment
+const unsigned long ackDuration = 60000; // 1 minute (60000ms)
+
+void setup() {
+  pinMode(BUTTON_PIN, INPUT_PULLUP);   // Configure the button with internal pull-up
+  disp.init();                         // Initialize the display
+  rgb.begin();                         // Initialize the RGB LED
+}
+
+void loop() {
+  float celsius = temper.getTemperature();        // Read temperature
+  float fahrenheit = celsius * 1.8 + 32;          // Convert to Fahrenheit
+  int tempInt = (int)fahrenheit;                  // Get integer value
+  displayTemperature(tempInt);                   // Display temperature
+  
+  // RGB LED Indication
+  if (tempInt < 95) {          // Cold
+    rgb.setPixelColor(0, 200, 255);  // Light blue
+    rgb.show();
+    handleBuzzer(1, 6000);           // Beep every 6 seconds
+  } else if (tempInt >= 95 && tempInt <= 98) { // Normal
+    rgb.setPixelColor(0, 255, 0);    // Green
+    rgb.show();
+    handleBuzzer(0, 0);              // No beep
+  } else if (tempInt >= 99 && tempInt <= 101) { // Caution
+    rgb.setPixelColor(255, 255, 0);  // Yellow
+    rgb.show();
+    handleBuzzer(2, 6000);           // Beep twice every 6 seconds
+  } else if (tempInt > 101) { // Warning
+    rgb.setPixelColor(255, 0, 0);    // Red
+    rgb.show();
+    handleBuzzer(3, 4000);           // Beep thrice every 4 seconds
+  }
+
+  // Check button press for acknowledgment
+  if (digitalRead(BUTTON_PIN) == LOW) {
+    acknowledgeWarning = true;
+    lastAckTime = millis();
+  }
+  if (acknowledgeWarning && millis() - lastAckTime > ackDuration) {
+    acknowledgeWarning = false; // Reset after 1 minute
+  }
+}
+
+void displayTemperature(int8_t temperature) {
+  int8_t temp[4];
+  if (temperature < 0) {
+    temp[0] = INDEX_NEGATIVE_SIGN;
+    temperature = abs(temperature);
+  } else if (temperature < 100) temp[0] = INDEX_BLANK;
+  else temp[0] = temperature / 100;
+  temperature %= 100;
+  temp[1] = temperature / 10;
+  temp[2] = temperature % 10;
+  temp[3] = 13;  // 'F' symbol
+  disp.display(temp);
+}
+
+void handleBuzzer(int beeps, int interval) {
+  if (acknowledgeWarning) {
+    buz.off(); // Mute during acknowledgment
+    return;
+  }
+
+  for (int i = 0; i < beeps; i++) {
+    buz.playTone(440, 200);     // Play a tone
+    delay(200);                // Short pause
+  }
+  delay(interval - (beeps * 200)); // Remaining interval time
+}
