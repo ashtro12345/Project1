@@ -1,0 +1,59 @@
+#include <EasyStarterKitTM1637.h>      // Include the display library
+#include <EasyStarterKitTemperature.h> // Include the temperature library
+#include <EasyStarterKitLED.h>         // Include the LED library
+
+#define NTC_PIN A1                     // SIG pin of NTC module connected to A1 of Arduino
+Temperature temper(NTC_PIN);           // Setup temperature object
+
+#define CLK 4                          // CLK of the TM1637 IC connected to D4 of Arduino
+#define DIO 2                          // DIO of the TM1637 IC connected to D2 of Arduino
+TM1637 disp(CLK, DIO);                 // Setup display object
+
+#define LED_PIN 6                      // LED connected to D6 of Arduino
+LED led(LED_PIN);                      // Setup the LED object
+
+void setup() {
+  disp.init();                         // Initialize the display
+  delay(1000);                         // Wait for 1 second
+}
+
+void loop() {
+  float celsius = temper.getTemperature();      // Get temperature in Celsius
+  float fahrenheit = celsius * 1.8 + 32;        // Convert to Fahrenheit
+  displayTemperature((int8_t)fahrenheit);       // Display temperature on the 7-segment display
+
+  // Turn on the LED if the temperature is above 80°F, else turn it off
+  if (fahrenheit > 80) {
+    led.on();  // Turn on LED
+  } else {
+    led.off(); // Turn off LED
+  }
+
+  delay(1000); // Wait for 1 second
+}
+
+/************************************************************************************/
+/* Function: Display temperature on 4-digit digital display                         */
+/* Parameter: -int8_t temperature, temperature range is -40 ~ 125 degrees Fahrenheit*/
+/* Return Value: void                                                               */
+/************************************************************************************/
+
+void displayTemperature(int8_t temperature) {
+  int8_t temp[4];                                    // Declare an array to store characters to display
+
+  if (temperature < 0) {                             // If the temperature is negative
+    temp[0] = INDEX_NEGATIVE_SIGN;                   // Set the first element to the negative sign
+    temperature = abs(temperature);                 // Convert the temperature to a positive value
+  } else if (temperature < 100) {
+    temp[0] = INDEX_BLANK;                           // Set the first element to a blank space
+  } else {
+    temp[0] = temperature / 100;                    // Set the first element to the hundreds place
+  }
+
+  temperature %= 100;                               // Get the tens and ones places
+  temp[1] = temperature / 10;                       // Set the second element to the tens place
+  temp[2] = temperature % 10;                       // Set the third element to the ones place
+  temp[3] = 13;                                     // Set the last element to the index of 'F' for Fahrenheit symbol
+  
+  disp.display(temp);                               // Display the temperature on the 7-segment display
+}
